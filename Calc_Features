@@ -1,0 +1,1018 @@
+
+# setwd("C:/Users/Marce/Documents/tp/")
+setwd("D:/Documentos/Facu/Organizacion de Datos/TP2/Final_v2/")
+
+####  LIBRERIAS ####
+
+library(lubridate)
+
+#### SUBIENDO LOS DATA SET ####
+
+# EVENTS
+
+# events <- read.csv("events.csv.gzip")
+
+# saveRDS(events,"events.rds")
+events <- readRDS("events.rds")
+
+as.POSIXct(events$date, tz = "UTC") -> events$date
+
+events <- events[order(events$date),]
+
+
+# CLICKS 
+
+read.csv("clicks.csv.gzip")->clicks
+as.POSIXct(paste(substr(clicks$created,1,10),
+                 substr(clicks$created,12,(nchar(as.character(clicks$created))-1)))) -> clicks$created
+
+clicks <- clicks[order(clicks$created),]
+
+# INSTALLS 
+
+read.csv("installs.csv.gzip")->installs
+as.POSIXct(installs$created, tz = "UTC") -> installs$created
+
+installs <- installs[order(installs$created),]
+
+# AUCTIONS 
+
+auctions <- readRDS("auctions.rds")
+as.POSIXct(auctions$date, tz = "UTC") -> auctions$date
+
+auctions <- auctions[order(auctions$date),]
+
+#### FEATURES #### 
+
+ventana_final <- data.frame(t(rep(0,95)))
+
+colnames(ventana_final) <- c("date",
+                             "device_id",
+                             "ref_type_id",
+                             "source_id",
+                             "TARGET",
+                             "ventana",
+                             "TARGET_CONV_bin",
+                             "TARGET_CONV",
+                             "Hizo_Click",
+                             "PCT_Clicks_Wifi",
+                             "Cant_Clicks_Ult1hs",
+                             "Cant_Clicks_Ult24hs",
+                             "Cant_Clicks_Ult48hs",
+                             "Cant_Clicks_Ult12hs",
+                             "Cant_Clicks_Ult6hs",
+                             "Time_UltClick",
+                             "UltClick_EsWifi",
+                             "PCT_Clicks_UltHs",
+                             "PCT_Clicks_Ult24Hs",
+                             "PCT_Clicks_48vs24",
+                             "PCT_Clicks_24vs12",
+                             "PCT_Clicks_12vs6",
+                             "Tuvo_Auction",
+                             "Cant_Auctions_Ult2hs",
+                             "Cant_Auctions_Ult1hs",
+                             "Cant_Auctions_UltMediaHs",
+                             "Cant_Auctions_UltCuartoHs",
+                             "Cant_Auctions_00hs",
+                             "Cant_Auctions_23hs",
+                             "Auctions_Entre_23y00",
+                             "Cant_Auctions_01hs",
+                             "Cant_Auctions_02hs",
+                             "Cant_Auctions_03hs",
+                             "Cant_Auctions_04hs",
+                             "Cant_Auctions_05hs",
+                             "Cant_Auctions_06hs",
+                             "Cant_Auctions_07_13hs",
+                             "Cant_Auctions_14_22hs",
+                             "Time_UltAuction",
+                             "Total_Auctions",
+                             "Prop_Auctions_23a00",
+                             "Prop_Auctions_01a03",
+                             "Prop_Auctions_04a06",
+                             "Prop_Auctions_07a13",
+                             "Prop_Auctions_14a22",
+                             "Cant_Auctions_Ult24Hs",
+                             "Cant_Auctions_Ult12Hs",
+                             "Cant_Auctions_Ult18Hs",
+                             "Cant_Auctions_Ult48Hs",
+                             "Prop_Auctios_Ult15m",
+                             "Prop_Auctios_Ult15m_EsMas",
+                             "Prop_Auctios_Ult30m",
+                             "Prop_Auctios_Ult30m_EsMas",
+                             "Prop_Auctios_Ult30m_S24",
+                             "Prop_Auctios_Ult30m_S24_EsMas",
+                             "Prop_Auctios_48VS24",
+                             "Prop_Auctios_24VS12",
+                             "Prop_Auctios_24VS12_EsMas",
+                             "Prop_Auctios_24VS18",
+                             "Prop_Auctios_24VS18_EsMas",
+                             "Prop_Auctios_2vs30m",
+                             "Prop_Auctios_2vs30m_EsMas",
+                             "Tiene_Installs",
+                             "Cant_Installs_Ult1hs",
+                             "Cant_Installs_Ult12hs",
+                             "Cant_Installs_Ult24hs",
+                             "Cant_Installs_Ult48hs",
+                             "Time_UltInstalls",
+                             "Ult_Installs_EsWifi",
+                             "Ult_Installs_EsImplicito",
+                             "PCT_Installs_UltHS",
+                             "PCT_Installs_UltHS_S48",
+                             "PCT_Installs_Ult24HS",
+                             "PCT_Installs_24VS1",
+                             "PCT_Installs_24VS1_EsMas",
+                             "PCT_Installs_24VS12",
+                             "PCT_Installs_12VS1",
+                             "PCT_Installs_12VS1_EsMas",
+                             "Tiene_Events",
+                             "Cant_Events_Ult1hs",
+                             "Cant_Events_Ult6hs",
+                             "Cant_Events_Ult12hs",
+                             "Cant_Events_Ult24hs",
+                             "Cant_Events_Ult48hs",
+                             "Time_UltEvents",
+                             "Ult_Event_id",
+                             "Ult_Ref_Type_Events",
+                             "Ult_App_Attributed_Events",
+                             "Ult_connection_type_Events",
+                             "Ult_Event_EsWifi",
+                             "PCT_Events_1hs",
+                             "PCT_Events_6hs",
+                             "PCT_Events_12hs",
+                             "Cant_Wifi",
+                             "Tiene_Hist")
+
+for(i in 6:7){
+  
+  ventana <- readRDS(paste0("ventana_",i,".rds"))
+  ventana <- ventana[order(ventana$date),]
+  
+  ventana <- subset(ventana,duplicated(ventana$device_id)==FALSE)
+  
+  
+  # Defino la fecha de inicio de la ventana 
+  
+  as.POSIXct(as.character(paste0("2019-04-",(17+i)," 00:00:00 UTC")), tz = "UTC") -> fec_in
+  
+  
+  #### CALCULO EL TARGET 2 SOBRE CONVERTIR
+  
+  INST_TARGET <- subset(installs,installs$created>fec_in & installs$created<(fec_in+3*24*60*60))
+  
+  
+  ventana$TARGET_CONV_bin <- ifelse(ventana$device_id %in% INST_TARGET$ref_hash,1,0)
+  
+  F_TARGET_CONV <- as.Date(INST_TARGET$created[match(ventana$device_id,
+                                                     INST_TARGET$ref_hash)]) 
+  
+  ventana$TARGET_CONV <- as.numeric(difftime(F_TARGET_CONV,
+                                             rep(fec_in,nrow(ventana)),
+                                             units = "secs"))
+  
+  ventana$TARGET_CONV[is.na(ventana$TARGET_CONV)]<-3*24*60*60
+
+  rm(F_TARGET_CONV)
+  
+  # Marco la ventana 
+  
+  ventana$ventana <- rep(i,nrow(ventana))
+  
+  # Me quedo con los datos analizables para features 
+  
+  clicks_an <- subset(clicks,clicks$created<fec_in)
+  events_an <- subset(events,events$date<fec_in)
+  installs_an <- subset(installs,installs$created<fec_in)
+  auctions_an <- subset(auctions,auctions$date<fec_in)
+  
+  
+  #### Variables con clicks ####
+  
+  # Hizo_Click
+  
+  ventana$Hizo_Click <- ifelse(ventana$device_id %in% clicks_an$ref_hash,1,0)
+  table(ventana$Hizo_Click)
+  
+  # PCT_Clicks_Wifi
+  
+  tabla <- as.data.frame(table(clicks_an$ref_hash,clicks_an$wifi_connection))
+  tabla_disp <- as.data.frame(table(clicks_an$ref_hash))
+  
+  tabla$cant_disp <- tabla_disp$Freq[match(tabla$Var1,tabla_disp$Var1)]
+  tabla$freq_wifi <- tabla$Freq / tabla$cant_disp
+  
+  tabla_wifi <- subset(tabla,tabla$Var2=="True")
+  
+  ventana$PCT_Clicks_Wifi <- tabla_wifi$freq_wifi[match(ventana$device_id,
+                                                        tabla_wifi$Var1)]
+  ventana$PCT_Clicks_Wifi[is.na(ventana$PCT_Clicks_Wifi)]<-0
+  
+  
+  summary(ventana$PCT_Clicks_Wifi)
+  
+  # Cant_Clicks_Ult1hs
+  
+  CLICKS_ULT1HS <- as.data.frame(table(clicks_an$ref_hash[(fec_in - clicks_an$created)<60*60]))
+  
+  ventana$Cant_Clicks_Ult1hs <- CLICKS_ULT1HS$Freq[match(ventana$device_id,CLICKS_ULT1HS$Var1)]
+  ventana$Cant_Clicks_Ult1hs[is.na(ventana$Cant_Clicks_Ult1hs)]<-0
+  
+  summary(ventana$Cant_Clicks_Ult1hs)
+  
+  
+  # Cant_Clicks_Ult24hs
+  
+  CLICKS_ULT1HS <- as.data.frame(table(clicks_an$ref_hash[(fec_in - clicks_an$created)<60*60*24]))
+  
+  ventana$Cant_Clicks_Ult24hs <- CLICKS_ULT1HS$Freq[match(ventana$device_id,CLICKS_ULT1HS$Var1)]
+  ventana$Cant_Clicks_Ult24hs[is.na(ventana$Cant_Clicks_Ult24hs)]<-0
+  
+  summary(ventana$Cant_Clicks_Ult24hs)
+  
+  
+  # Cant_Clicks_Ult48hs
+  
+  CLICKS_ULT1HS <- as.data.frame(table(clicks_an$ref_hash[(fec_in - clicks_an$created)<60*60*48]))
+  
+  ventana$Cant_Clicks_Ult48hs <- CLICKS_ULT1HS$Freq[match(ventana$device_id,CLICKS_ULT1HS$Var1)]
+  ventana$Cant_Clicks_Ult48hs[is.na(ventana$Cant_Clicks_Ult48hs)]<-0
+  
+  summary(ventana$Cant_Clicks_Ult48hs)
+  
+  
+  
+  # Cant_Clicks_Ult12hs
+  
+  CLICKS_ULT1HS <- as.data.frame(table(clicks_an$ref_hash[(fec_in - clicks_an$created)<60*60*12]))
+  
+  ventana$Cant_Clicks_Ult12hs <- CLICKS_ULT1HS$Freq[match(ventana$device_id,CLICKS_ULT1HS$Var1)]
+  ventana$Cant_Clicks_Ult12hs[is.na(ventana$Cant_Clicks_Ult12hs)]<-0
+  
+  summary(ventana$Cant_Clicks_Ult12hs)
+  
+  
+  # Cant_Clicks_Ult6hs
+  
+  CLICKS_ULT1HS <- as.data.frame(table(clicks_an$ref_hash[(fec_in - clicks_an$created)<60*60*6]))
+  
+  ventana$Cant_Clicks_Ult6hs <- CLICKS_ULT1HS$Freq[match(ventana$device_id,CLICKS_ULT1HS$Var1)]
+  ventana$Cant_Clicks_Ult6hs[is.na(ventana$Cant_Clicks_Ult6hs)]<-0
+  
+  summary(ventana$Cant_Clicks_Ult6hs)
+  
+  print(paste(round(8/88*100),"%"))
+  
+  #### ULTIMO CLICK
+  
+  clicks_an_or <- clicks_an[order(clicks_an$created,decreasing = TRUE),]
+  duplicados <- duplicated(clicks_an_or$ref_hash)
+  
+  clicks_an_or <- subset(clicks_an_or,duplicados==FALSE)
+  
+  
+  #### Time_UltClick
+  
+  Time_UltClick <- as.numeric(fec_in - clicks_an_or$created)
+  
+  ventana$Time_UltClick <- Time_UltClick[match(ventana$device_id,
+                                               clicks_an_or$ref_hash)]
+  
+  ventana$Time_UltClick[is.na(ventana$Time_UltClick)]<-as.numeric(difftime(fec_in,min(clicks$created),units = "secs"))
+  
+  summary(ventana$Time_UltClick)
+  
+  
+  #### UltClick_EsWifi
+  
+  ventana$UltClick_EsWifi <- ifelse(clicks_an_or$wifi_connection[match(ventana$device_id,
+                                                                       clicks_an_or$ref_hash)]=="False",0,1)
+  
+  ventana$UltClick_EsWifi[is.na(ventana$UltClick_EsWifi)]<-0
+  
+  table(ventana$UltClick_EsWifi)
+  
+  
+  #### PCT_Clicks_UltHs
+  
+  ventana$PCT_Clicks_UltHs <- ventana$Cant_Clicks_Ult1hs / ventana$Cant_Clicks_Ult24hs
+  
+  ventana$PCT_Clicks_UltHs[is.na(ventana$PCT_Clicks_UltHs)]<-0
+  
+  summary(ventana$PCT_Clicks_UltHs)
+  
+  
+  
+  #### PCT_Clicks_Ult24Hs
+  
+  ventana$PCT_Clicks_Ult24Hs <- ventana$Cant_Clicks_Ult24hs / ventana$Cant_Clicks_Ult48hs
+  
+  ventana$PCT_Clicks_Ult24Hs[is.na(ventana$PCT_Clicks_Ult24Hs)]<-0
+  
+  summary(ventana$PCT_Clicks_Ult24Hs)
+  
+  
+  # PCT_Clicks_48vs24
+  
+  ventana$PCT_Clicks_48vs24 <- (ventana$Cant_Clicks_Ult48hs - ventana$Cant_Clicks_Ult24hs) / ventana$Cant_Clicks_Ult48hs
+  ventana$PCT_Clicks_48vs24[is.na(ventana$PCT_Clicks_48vs24)]<-0
+  
+  
+  summary(ventana$PCT_Clicks_48vs24)
+  
+  
+  print(paste(round(15/88*100),"%"))
+  
+  
+  # PCT_Clicks_24vs12
+  
+  ventana$PCT_Clicks_24vs12 <- (ventana$Cant_Clicks_Ult24hs - ventana$Cant_Clicks_Ult12hs) / ventana$Cant_Clicks_Ult24hs
+  ventana$PCT_Clicks_24vs12[is.na(ventana$PCT_Clicks_24vs12)]<-0
+  
+  
+  summary(ventana$PCT_Clicks_24vs12)
+  
+  
+  # PCT_Clicks_12vs6
+  
+  ventana$PCT_Clicks_12vs6 <- (ventana$Cant_Clicks_Ult12hs - ventana$Cant_Clicks_Ult6hs) / ventana$Cant_Clicks_Ult12hs
+  ventana$PCT_Clicks_12vs6[is.na(ventana$PCT_Clicks_12vs6)]<-0
+  
+  
+  summary(ventana$PCT_Clicks_12vs6)
+  
+  
+  
+  
+  #### Variables con auctions ####
+  
+  # Tuvo_Auction
+  
+  ventana$Tuvo_Auction <- ifelse(ventana$device_id %in% auctions_an$device_id,1,0)
+  table(ventana$Tuvo_Auction)
+  
+  print(paste(round(18/88*100),"%"))
+  
+  
+  # Cant_Auctions_Ult2hs
+  
+  AUCTIONS_ULT1HS <- as.data.frame(table(auctions_an$device_id[(fec_in - auctions_an$date)<60*60*2]))
+  
+  ventana$Cant_Auctions_Ult2hs <- AUCTIONS_ULT1HS$Freq[match(ventana$device_id,AUCTIONS_ULT1HS$Var1)]
+  ventana$Cant_Auctions_Ult2hs[is.na(ventana$Cant_Auctions_Ult2hs)]<-0
+  
+  summary(ventana$Cant_Auctions_Ult2hs)
+  
+  # Cant_Auctions_Ult1hs
+  
+  AUCTIONS_ULT1HS <- as.data.frame(table(auctions_an$device_id[(fec_in - auctions_an$date)<60*60]))
+  
+  ventana$Cant_Auctions_Ult1hs <- AUCTIONS_ULT1HS$Freq[match(ventana$device_id,AUCTIONS_ULT1HS$Var1)]
+  ventana$Cant_Auctions_Ult1hs[is.na(ventana$Cant_Auctions_Ult1hs)]<-0
+  
+  summary(ventana$Cant_Auctions_Ult1hs)
+  
+  # Cant_Auctions_UltMediaHs
+  
+  AUCTIONS_ULT1HS <- as.data.frame(table(auctions_an$device_id[(fec_in - auctions_an$date)<60*60*0.5]))
+  
+  ventana$Cant_Auctions_UltMediaHs <- AUCTIONS_ULT1HS$Freq[match(ventana$device_id,AUCTIONS_ULT1HS$Var1)]
+  ventana$Cant_Auctions_UltMediaHs[is.na(ventana$Cant_Auctions_UltMediaHs)]<-0
+  
+  summary(ventana$Cant_Auctions_UltMediaHs)
+  
+  # Cant_Auctions_UltCuartoHs
+  
+  AUCTIONS_ULT1HS <- as.data.frame(table(auctions_an$device_id[(fec_in - auctions_an$date)<60*60*0.25]))
+  
+  ventana$Cant_Auctions_UltCuartoHs <- AUCTIONS_ULT1HS$Freq[match(ventana$device_id,AUCTIONS_ULT1HS$Var1)]
+  ventana$Cant_Auctions_UltCuartoHs[is.na(ventana$Cant_Auctions_UltCuartoHs)]<-0
+  
+  summary(ventana$Cant_Auctions_UltCuartoHs)
+  
+  
+  print(paste(round(22/88*100),"%"))
+  
+  
+  # Cant_Auctions_00hs
+  
+  AUCTIONS_ULT1HS <- as.data.frame(table(auctions_an$device_id[hour(auctions_an$date) %in% c(0)]))
+  
+  ventana$Cant_Auctions_00hs <- AUCTIONS_ULT1HS$Freq[match(ventana$device_id,AUCTIONS_ULT1HS$Var1)]
+  ventana$Cant_Auctions_00hs[is.na(ventana$Cant_Auctions_00hs)]<-0
+  
+  summary(ventana$Cant_Auctions_00hs)
+  
+  # Cant_Auctions_23hs
+  
+  AUCTIONS_ULT1HS <- as.data.frame(table(auctions_an$device_id[hour(auctions_an$date) %in% c(23)]))
+  
+  ventana$Cant_Auctions_23hs <- AUCTIONS_ULT1HS$Freq[match(ventana$device_id,AUCTIONS_ULT1HS$Var1)]
+  ventana$Cant_Auctions_23hs[is.na(ventana$Cant_Auctions_23hs)]<-0
+  
+  summary(ventana$Cant_Auctions_23hs)
+  
+  # Auctions_Entre_23y00
+  
+  ventana$Auctions_Entre_23y00 <- ifelse( + ventana$Cant_Auctions_23hs > 0,1,0)
+  table(ventana$Auctions_Entre_23y00)
+  table(ventana$Auctions_Entre_23y00,ventana$TARGET<60*60)->a
+  a/rowSums(a)
+  
+  # Cant_Auctions_01hs
+  
+  AUCTIONS_ULT1HS <- as.data.frame(table(auctions_an$device_id[hour(auctions_an$date) %in% c(1)]))
+  
+  ventana$Cant_Auctions_01hs <- AUCTIONS_ULT1HS$Freq[match(ventana$device_id,AUCTIONS_ULT1HS$Var1)]
+  ventana$Cant_Auctions_01hs[is.na(ventana$Cant_Auctions_01hs)]<-0
+  
+  summary(ventana$Cant_Auctions_01hs)
+  
+  # Cant_Auctions_02hs
+  
+  AUCTIONS_ULT1HS <- as.data.frame(table(auctions_an$device_id[hour(auctions_an$date) %in% c(2)]))
+  
+  ventana$Cant_Auctions_02hs <- AUCTIONS_ULT1HS$Freq[match(ventana$device_id,AUCTIONS_ULT1HS$Var1)]
+  ventana$Cant_Auctions_02hs[is.na(ventana$Cant_Auctions_02hs)]<-0
+  
+  summary(ventana$Cant_Auctions_02hs)
+  
+  # Cant_Auctions_03hs
+  
+  AUCTIONS_ULT1HS <- as.data.frame(table(auctions_an$device_id[hour(auctions_an$date) %in% c(3)]))
+  
+  ventana$Cant_Auctions_03hs <- AUCTIONS_ULT1HS$Freq[match(ventana$device_id,AUCTIONS_ULT1HS$Var1)]
+  ventana$Cant_Auctions_03hs[is.na(ventana$Cant_Auctions_03hs)]<-0
+  
+  summary(ventana$Cant_Auctions_03hs)
+  
+  # Cant_Auctions_04hs
+  
+  AUCTIONS_ULT1HS <- as.data.frame(table(auctions_an$device_id[hour(auctions_an$date) %in% c(4)]))
+  
+  ventana$Cant_Auctions_04hs <- AUCTIONS_ULT1HS$Freq[match(ventana$device_id,AUCTIONS_ULT1HS$Var1)]
+  ventana$Cant_Auctions_04hs[is.na(ventana$Cant_Auctions_04hs)]<-0
+  
+  summary(ventana$Cant_Auctions_04hs)
+  
+  # Cant_Auctions_05hs
+  
+  AUCTIONS_ULT1HS <- as.data.frame(table(auctions_an$device_id[hour(auctions_an$date) %in% c(5)]))
+  
+  ventana$Cant_Auctions_05hs <- AUCTIONS_ULT1HS$Freq[match(ventana$device_id,AUCTIONS_ULT1HS$Var1)]
+  ventana$Cant_Auctions_05hs[is.na(ventana$Cant_Auctions_05hs)]<-0
+  
+  summary(ventana$Cant_Auctions_05hs)
+  
+  # Cant_Auctions_06hs
+  
+  AUCTIONS_ULT1HS <- as.data.frame(table(auctions_an$device_id[hour(auctions_an$date) %in% c(6)]))
+  
+  ventana$Cant_Auctions_06hs <- AUCTIONS_ULT1HS$Freq[match(ventana$device_id,AUCTIONS_ULT1HS$Var1)]
+  ventana$Cant_Auctions_06hs[is.na(ventana$Cant_Auctions_06hs)]<-0
+  
+  summary(ventana$Cant_Auctions_06hs)
+  
+  # Cant_Auctions_07_13hs
+  
+  AUCTIONS_ULT1HS <- as.data.frame(table(auctions_an$device_id[hour(auctions_an$date) %in% c(7:13)]))
+  
+  ventana$Cant_Auctions_07_13hs <- AUCTIONS_ULT1HS$Freq[match(ventana$device_id,AUCTIONS_ULT1HS$Var1)]
+  ventana$Cant_Auctions_07_13hs[is.na(ventana$Cant_Auctions_07_13hs)]<-0
+  
+  summary(ventana$Cant_Auctions_07_13hs)
+  
+  # Cant_Auctions_14_22hs
+  
+  AUCTIONS_ULT1HS <- as.data.frame(table(auctions_an$device_id[hour(auctions_an$date) %in% c(14:22)]))
+  
+  ventana$Cant_Auctions_14_22hs <- AUCTIONS_ULT1HS$Freq[match(ventana$device_id,AUCTIONS_ULT1HS$Var1)]
+  ventana$Cant_Auctions_14_22hs[is.na(ventana$Cant_Auctions_14_22hs)]<-0
+  
+  summary(ventana$Cant_Auctions_14_22hs)
+  
+  
+  
+  print(paste(round(33/88*100),"%"))
+  
+  
+  
+  # Time_UltAuction 
+  
+  AUCTIONS_ULT1HS <- auctions_an[order(auctions_an$date,decreasing=TRUE),]
+  AUCTIONS_ULT1HS <- subset(AUCTIONS_ULT1HS,duplicated(AUCTIONS_ULT1HS$device_id)==FALSE)
+  
+  ventana$Time_UltAuction <- as.numeric(fec_in - AUCTIONS_ULT1HS$date[match(ventana$device_id,
+                                                                            AUCTIONS_ULT1HS$device_id)])
+  
+  ventana$Time_UltAuction[is.na(ventana$Time_UltAuction)]<- as.numeric(difftime(fec_in,min(auctions$date),units = "secs"))
+  
+  
+  summary(ventana$Time_UltAuction)
+  
+  # Total_Auctions
+  
+  TOTAL <- as.data.frame(table(auctions_an$device_id))
+  
+  ventana$Total_Auctions <- TOTAL$Freq[match(ventana$device_id,TOTAL$Var1)]
+  ventana$Total_Auctions[is.na(ventana$Total_Auctions)]<-0
+  
+  summary(ventana$Total_Auctions)
+  
+  # Prop_Auctions_23a00
+  
+  ventana$Prop_Auctions_23a00 <- (ventana$Cant_Auctions_00hs + ventana$Cant_Auctions_23hs) / ventana$Total_Auctions
+  ventana$Prop_Auctions_23a00[is.na(ventana$Prop_Auctions_23a00)]<-0
+  
+  summary(ventana$Prop_Auctions_23a00)
+  
+  # Prop_Auctions_01a03
+  
+  ventana$Prop_Auctions_01a03 <- (ventana$Cant_Auctions_01hs + ventana$Cant_Auctions_02hs + ventana$Cant_Auctions_03hs) / ventana$Total_Auctions
+  ventana$Prop_Auctions_01a03[is.na(ventana$Prop_Auctions_01a03)]<-0
+  
+  summary(ventana$Prop_Auctions_01a03)
+  
+  # Prop_Auctions_04a06
+  
+  ventana$Prop_Auctions_04a06 <- (ventana$Cant_Auctions_04hs + ventana$Cant_Auctions_05hs + ventana$Cant_Auctions_06hs) / ventana$Total_Auctions
+  ventana$Prop_Auctions_04a06[is.na(ventana$Prop_Auctions_04a06)]<-0
+  
+  summary(ventana$Prop_Auctions_04a06)
+  
+  # Prop_Auctions_07a13
+  
+  ventana$Prop_Auctions_07a13 <- (ventana$Cant_Auctions_07_13hs) / ventana$Total_Auctions
+  ventana$Prop_Auctions_07a13[is.na(ventana$Prop_Auctions_07a13)]<-0
+  
+  summary(ventana$Prop_Auctions_07a13)
+  
+  # Prop_Auctions_14a22
+  
+  ventana$Prop_Auctions_14a22 <- (ventana$Cant_Auctions_14_22hs) / ventana$Total_Auctions
+  ventana$Prop_Auctions_14a22[is.na(ventana$Prop_Auctions_14a22)]<-0
+  
+  summary(ventana$Prop_Auctions_14a22)
+  
+  # Cant_Auctions_Ult24Hs
+  
+  AUCTIONS_ULT1HS <- as.data.frame(table(auctions_an$device_id[(fec_in - auctions_an$date)<60*60*24]))
+  
+  ventana$Cant_Auctions_Ult24Hs <- AUCTIONS_ULT1HS$Freq[match(ventana$device_id,AUCTIONS_ULT1HS$Var1)]
+  ventana$Cant_Auctions_Ult24Hs[is.na(ventana$Cant_Auctions_Ult24Hs)]<-0
+  
+  summary(ventana$Cant_Auctions_Ult24Hs)
+  
+  # Cant_Auctions_Ult12Hs
+  
+  AUCTIONS_ULT1HS <- as.data.frame(table(auctions_an$device_id[(fec_in - auctions_an$date)<60*60*12]))
+  
+  ventana$Cant_Auctions_Ult12Hs <- AUCTIONS_ULT1HS$Freq[match(ventana$device_id,AUCTIONS_ULT1HS$Var1)]
+  ventana$Cant_Auctions_Ult12Hs[is.na(ventana$Cant_Auctions_Ult12Hs)]<-0
+  
+  summary(ventana$Cant_Auctions_Ult12Hs)
+  
+  # Cant_Auctions_Ult18Hs
+  
+  AUCTIONS_ULT1HS <- as.data.frame(table(auctions_an$device_id[(fec_in - auctions_an$date)<60*60*18]))
+  
+  ventana$Cant_Auctions_Ult18Hs <- AUCTIONS_ULT1HS$Freq[match(ventana$device_id,AUCTIONS_ULT1HS$Var1)]
+  ventana$Cant_Auctions_Ult18Hs[is.na(ventana$Cant_Auctions_Ult18Hs)]<-0
+  
+  summary(ventana$Cant_Auctions_Ult18Hs)
+  
+  
+  # Cant_Auctions_Ult48Hs
+  
+  AUCTIONS_ULT1HS <- as.data.frame(table(auctions_an$device_id[(fec_in - auctions_an$date)<60*60*48]))
+  
+  ventana$Cant_Auctions_Ult48Hs <- AUCTIONS_ULT1HS$Freq[match(ventana$device_id,AUCTIONS_ULT1HS$Var1)]
+  ventana$Cant_Auctions_Ult48Hs[is.na(ventana$Cant_Auctions_Ult48Hs)]<-0
+  
+  summary(ventana$Cant_Auctions_Ult48Hs)
+  
+  # Prop_Auctios_Ult15m
+  
+  ventana$Prop_Auctios_Ult15m <- (ventana$Cant_Auctions_UltCuartoHs) / ventana$Cant_Auctions_Ult1hs
+  ventana$Prop_Auctios_Ult15m[is.na(ventana$Prop_Auctios_Ult15m)]<-0
+  
+  summary(ventana$Prop_Auctios_Ult15m)
+  
+  # Prop_Auctios_Ult15m_EsMas
+  
+  ventana$Prop_Auctios_Ult15m_EsMas <- ifelse(ventana$Prop_Auctios_Ult15m>15/60,1,0)
+  
+  table(ventana$Prop_Auctios_Ult15m_EsMas)
+  
+  
+  # Prop_Auctios_Ult30m
+  
+  ventana$Prop_Auctios_Ult30m <- (ventana$Cant_Auctions_UltMediaHs) / ventana$Cant_Auctions_Ult1hs
+  ventana$Prop_Auctios_Ult30m[is.na(ventana$Prop_Auctios_Ult30m)]<-0
+  
+  summary(ventana$Prop_Auctios_Ult30m)
+  
+  # Prop_Auctios_Ult30m_EsMas
+  
+  ventana$Prop_Auctios_Ult30m_EsMas <- ifelse(ventana$Prop_Auctios_Ult15m>30/60,1,0)
+  
+  table(ventana$Prop_Auctios_Ult30m_EsMas)
+  
+  
+  # Prop_Auctios_Ult30m_S24
+  
+  ventana$Prop_Auctios_Ult30m_S24 <- (ventana$Cant_Auctions_UltMediaHs) / ventana$Cant_Auctions_Ult24Hs
+  ventana$Prop_Auctios_Ult30m_S24[is.na(ventana$Prop_Auctios_Ult30m_S24)]<-0
+  
+  summary(ventana$Prop_Auctios_Ult30m_S24)
+  
+  # Prop_Auctios_Ult30m_EsMas
+  
+  ventana$Prop_Auctios_Ult30m_S24_EsMas <- ifelse(ventana$Prop_Auctios_Ult30m_S24>30/(60*24),1,0)
+  
+  table(ventana$Prop_Auctios_Ult30m_S24_EsMas)
+  
+  
+  # Prop_Auctios_48VS24
+  
+  ventana$Prop_Auctios_48VS24 <- (ventana$Cant_Auctions_Ult48Hs - ventana$Cant_Auctions_Ult24Hs) / ventana$Cant_Auctions_Ult48Hs
+  ventana$Prop_Auctios_48VS24[is.na(ventana$Prop_Auctios_48VS24)]<-0
+  
+  summary(ventana$Prop_Auctios_48VS24)
+  
+  # Prop_Auctios_24VS12
+  
+  ventana$Prop_Auctios_24VS12 <- (ventana$Cant_Auctions_Ult24Hs - ventana$Cant_Auctions_Ult12Hs) / ventana$Cant_Auctions_Ult24Hs
+  ventana$Prop_Auctios_24VS12[is.na(ventana$Prop_Auctios_24VS12)]<-0
+  
+  summary(ventana$Prop_Auctios_24VS12)
+  
+  # Prop_Auctios_24VS12_EsMas
+  
+  ventana$Prop_Auctios_24VS12_EsMas <- ifelse(ventana$Cant_Auctions_Ult24Hs==0,-1,
+                                              ifelse(ventana$Prop_Auctios_24VS12<0.75,1,0))
+  
+  table(ventana$Prop_Auctios_24VS12_EsMas)
+  
+  
+  # Prop_Auctios_24VS18
+  
+  ventana$Prop_Auctios_24VS18 <- (ventana$Cant_Auctions_Ult24Hs - ventana$Cant_Auctions_Ult18Hs) / ventana$Cant_Auctions_Ult24Hs
+  ventana$Prop_Auctios_24VS18[is.na(ventana$Prop_Auctios_24VS18)]<-0
+  
+  summary(ventana$Prop_Auctios_24VS18)
+  
+  # Prop_Auctios_24VS18_EsMas
+  
+  ventana$Prop_Auctios_24VS18_EsMas <- ifelse(ventana$Cant_Auctions_Ult24Hs==0,-1,
+                                              ifelse(ventana$Prop_Auctios_24VS18<0.75,1,0))
+  
+  table(ventana$Prop_Auctios_24VS18_EsMas)
+  
+  
+  # Prop_Auctios_2vs30m
+  
+  ventana$Prop_Auctios_2vs30m <- (ventana$Cant_Auctions_Ult2hs - ventana$Cant_Auctions_UltMediaHs) / ventana$Cant_Auctions_Ult2hs
+  ventana$Prop_Auctios_2vs30m[is.na(ventana$Prop_Auctios_2vs30m)]<-0
+  
+  summary(ventana$Prop_Auctios_2vs30m)
+  
+  # Prop_Auctios_2vs30m_EsMas
+  
+  ventana$Prop_Auctios_2vs30m_EsMas <- ifelse(ventana$Cant_Auctions_Ult2hs==0,-1,
+                                              ifelse(ventana$Prop_Auctios_2vs30m>0.75,0,1))
+  
+  table(ventana$Prop_Auctios_2vs30m_EsMas)
+  
+  print(paste(round(60/88*100),"%"))
+  
+  
+  #### Variables con installs ####
+  
+  # Tiene_Installs
+  
+  ventana$Tiene_Installs <- ifelse(ventana$device_id %in% installs_an$ref_hash,1,0)
+  table(ventana$Tiene_Installs)
+  
+  # Cant_Installs_Ult1hs
+  
+  INSTALLS_ULT1HS <- as.data.frame(table(installs_an$ref_hash[(rep(fec_in,nrow(installs_an)) - installs_an$created)<60*60]))
+  
+  ventana$Cant_Installs_Ult1hs <- INSTALLS_ULT1HS$Freq[match(ventana$device_id,INSTALLS_ULT1HS$Var1)]
+  ventana$Cant_Installs_Ult1hs[is.na(ventana$Cant_Installs_Ult1hs)]<-0
+  
+  summary(ventana$Cant_Installs_Ult1hs)
+  
+  # Cant_Installs_Ult12hs
+  
+  INSTALLS_ULT1HS <- as.data.frame(table(installs_an$ref_hash[(fec_in - installs_an$created)<60*60*12]))
+  
+  ventana$Cant_Installs_Ult12hs <- INSTALLS_ULT1HS$Freq[match(ventana$device_id,INSTALLS_ULT1HS$Var1)]
+  ventana$Cant_Installs_Ult12hs[is.na(ventana$Cant_Installs_Ult12hs)]<-0
+  summary(ventana$Cant_Installs_Ult12hs)
+  
+  
+  
+  # Cant_Installs_Ult24hs
+  
+  INSTALLS_ULT1HS <- as.data.frame(table(installs_an$ref_hash[(fec_in - installs_an$created)<60*60*24]))
+  
+  ventana$Cant_Installs_Ult24hs <- INSTALLS_ULT1HS$Freq[match(ventana$device_id,INSTALLS_ULT1HS$Var1)]
+  ventana$Cant_Installs_Ult24hs[is.na(ventana$Cant_Installs_Ult24hs)]<-0
+  summary(ventana$Cant_Installs_Ult24hs)
+  
+  
+  # Cant_Installs_Ult48hs
+  
+  INSTALLS_ULT1HS <- as.data.frame(table(installs_an$ref_hash[(fec_in - installs_an$created)<60*60*48]))
+  
+  ventana$Cant_Installs_Ult48hs <- INSTALLS_ULT1HS$Freq[match(ventana$device_id,INSTALLS_ULT1HS$Var1)]
+  ventana$Cant_Installs_Ult48hs[is.na(ventana$Cant_Installs_Ult48hs)]<-0
+  
+  summary(ventana$Cant_Installs_Ult48hs)
+  
+  
+  print(paste(round(65/88*100),"%"))
+  
+  
+  # Time_UltInstalls 
+  
+  INSTALLS <- installs_an[order(installs_an$created,decreasing=TRUE),]
+  INSTALLS <- subset(INSTALLS,duplicated(INSTALLS$ref_hash)==FALSE)
+  
+  ventana$Time_UltInstalls <- as.numeric(fec_in - INSTALLS$created[match(ventana$device_id,
+                                                                         INSTALLS$ref_hash)])
+  
+  ventana$Time_UltInstalls[is.na(ventana$Time_UltInstalls)]<-as.numeric(difftime(fec_in,min(installs$created),units = "secs"))
+  
+  
+  summary(ventana$Time_UltInstalls)
+  
+  
+  # Ult_Installs_EsWifi
+  
+  ventana$Ult_Installs_EsWifi <- ifelse(INSTALLS$wifi[match(ventana$device_id,
+                                                            INSTALLS$ref_hash)]=="true",1,0)
+  
+  ventana$Ult_Installs_EsWifi[is.na(ventana$Ult_Installs_EsWifi)]<-0
+  
+  # Ult_Installs_EsImplicito
+  
+  ventana$Ult_Installs_EsImplicito <- ifelse(INSTALLS$implicit[match(ventana$device_id,
+                                                                     INSTALLS$ref_hash)]=="True",1,0)
+  
+  ventana$Ult_Installs_EsImplicito[is.na(ventana$Ult_Installs_EsImplicito)]<-(-1)
+  
+  ventana$Ult_Installs_EsImplicito <- as.factor(ventana$Ult_Installs_EsImplicito)
+  
+  
+  # PCT_Installs_UltHS
+  
+  ventana$PCT_Installs_UltHS  <- ventana$Cant_Installs_Ult1hs / ventana$Cant_Installs_Ult24hs
+  ventana$PCT_Installs_UltHS[is.na(ventana$PCT_Installs_UltHS)]<-0
+  
+  
+  summary(ventana$PCT_Installs_UltHS)
+  
+  # PCT_Installs_UltHS_S48
+  
+  ventana$PCT_Installs_UltHS_S48  <- ventana$Cant_Installs_Ult1hs / ventana$Cant_Installs_Ult48hs
+  ventana$PCT_Installs_UltHS_S48[is.na(ventana$PCT_Installs_UltHS_S48)]<-0
+  
+  
+  summary(ventana$PCT_Installs_UltHS_S48)
+  
+  
+  # PCT_Installs_Ult24HS
+  
+  ventana$PCT_Installs_Ult24HS  <- ventana$Cant_Installs_Ult24hs / ventana$Cant_Installs_Ult48hs
+  ventana$PCT_Installs_Ult24HS[is.na(ventana$PCT_Installs_Ult24HS)]<-0
+  
+  
+  summary(ventana$PCT_Installs_Ult24HS)
+  
+  
+  # PCT_Installs_24VS1
+  
+  ventana$PCT_Installs_24VS1  <- (ventana$Cant_Installs_Ult24hs - ventana$Cant_Installs_Ult1hs) / ventana$Cant_Installs_Ult24hs
+  ventana$PCT_Installs_24VS1[is.na(ventana$PCT_Installs_24VS1)]<-0
+  
+  
+  summary(ventana$PCT_Installs_24VS1)
+  
+  # PCT_Installs_24VS1_EsMas
+  
+  ventana$PCT_Installs_24VS1_EsMas <- ifelse(ventana$Cant_Installs_Ult24hs==0,-1,
+                                             ifelse(ventana$PCT_Installs_24VS1>0.99,0,1))
+  
+  table(ventana$PCT_Installs_24VS1_EsMas)
+  
+  
+  # PCT_Installs_24VS12
+  
+  ventana$PCT_Installs_24VS12  <- (ventana$Cant_Installs_Ult24hs - ventana$Cant_Installs_Ult12hs) / ventana$Cant_Installs_Ult24hs
+  ventana$PCT_Installs_24VS12[is.na(ventana$PCT_Installs_24VS12)]<-0
+  
+  
+  summary(ventana$PCT_Installs_24VS12)
+  
+  # PCT_Installs_12VS1
+  
+  ventana$PCT_Installs_12VS1  <- (ventana$Cant_Installs_Ult12hs - ventana$Cant_Installs_Ult1hs) / ventana$Cant_Installs_Ult12hs
+  ventana$PCT_Installs_12VS1[is.na(ventana$PCT_Installs_12VS1)]<-0
+  
+  
+  summary(ventana$PCT_Installs_12VS1)
+  
+  
+  # PCT_Installs_12VS1_EsMas
+  
+  ventana$PCT_Installs_12VS1_EsMas <- ifelse(ventana$Cant_Installs_Ult12hs==0,-1,
+                                             ifelse(ventana$PCT_Installs_12VS1>0.99,0,1))
+  
+  table(ventana$PCT_Installs_12VS1_EsMas)
+  
+  
+  
+  #### Variables con events ####
+  
+  # Tiene_Events
+  
+  ventana$Tiene_Events <- ifelse(ventana$device_id %in% events_an$ref_hash,1,0)
+  table(ventana$Tiene_Events)
+  
+  print(paste(round(75/88*100),"%"))
+  
+  
+  
+  # Cant_Events_Ult1hs
+  
+  EVENTS <- as.data.frame(table(events_an$ref_hash[(fec_in - events_an$date)<60*60]))
+  
+  ventana$Cant_Events_Ult1hs <- EVENTS$Freq[match(ventana$device_id,EVENTS$Var1)]
+  ventana$Cant_Events_Ult1hs[is.na(ventana$Cant_Events_Ult1hs)]<-0
+  
+  summary(ventana$Cant_Events_Ult1hs)
+  
+  
+  # Cant_Events_Ult6hs
+  
+  EVENTS <- as.data.frame(table(events_an$ref_hash[(fec_in - events_an$date)<60*60*6]))
+  
+  ventana$Cant_Events_Ult6hs <- EVENTS$Freq[match(ventana$device_id,EVENTS$Var1)]
+  ventana$Cant_Events_Ult6hs[is.na(ventana$Cant_Events_Ult6hs)]<-0
+  
+  summary(ventana$Cant_Events_Ult6hs)
+  
+  
+  # Cant_Events_Ult12hs
+  
+  EVENTS <- as.data.frame(table(events_an$ref_hash[(fec_in - events_an$date)<60*60*12]))
+  
+  ventana$Cant_Events_Ult12hs <- EVENTS$Freq[match(ventana$device_id,EVENTS$Var1)]
+  ventana$Cant_Events_Ult12hs[is.na(ventana$Cant_Events_Ult12hs)]<-0
+  
+  summary(ventana$Cant_Events_Ult12hs)
+  
+  # Cant_Events_Ult24hs
+  
+  EVENTS <- as.data.frame(table(events_an$ref_hash[(fec_in - events_an$date)<60*60*24]))
+  
+  ventana$Cant_Events_Ult24hs <- EVENTS$Freq[match(ventana$device_id,EVENTS$Var1)]
+  ventana$Cant_Events_Ult24hs[is.na(ventana$Cant_Events_Ult24hs)]<-0
+  
+  summary(ventana$Cant_Events_Ult24hs)
+  
+  # Cant_Events_Ult48hs
+  
+  EVENTS <- as.data.frame(table(events_an$ref_hash[(fec_in - events_an$date)<60*60*48]))
+  
+  ventana$Cant_Events_Ult48hs <- EVENTS$Freq[match(ventana$device_id,EVENTS$Var1)]
+  ventana$Cant_Events_Ult48hs[is.na(ventana$Cant_Events_Ult48hs)]<-0
+  
+  summary(ventana$Cant_Events_Ult48hs)
+  
+  
+  # Time_UltEvents 
+  
+  EVENTS <- events_an[order(events_an$date,decreasing=TRUE),]
+  EVENTS <- subset(EVENTS,duplicated(EVENTS$ref_hash)==FALSE)
+  
+  ventana$Time_UltEvents <- as.numeric(fec_in - EVENTS$date[match(ventana$device_id,
+                                                                  EVENTS$ref_hash)])
+  
+  ventana$Time_UltEvents[is.na(ventana$Time_UltEvents)]<-as.numeric(difftime(fec_in,min(events$date),units = "secs"))
+  
+  
+  summary(ventana$Time_UltEvents)
+  
+  
+  # Ult_Event_id
+  
+  ventana$Ult_Event_id <- EVENTS$event_id[match(ventana$device_id,
+                                                EVENTS$ref_hash)]
+  
+  ventana$Ult_Event_id[is.na(ventana$Ult_Event_id)]<-(-1)
+  
+  ventana$Ult_Event_id <- as.factor(ventana$Ult_Event_id)
+  
+  
+  # Ult_Ref_Type_Events
+  
+  ventana$Ult_Ref_Type_Events <- EVENTS$ref_type[match(ventana$device_id,
+                                                       EVENTS$ref_hash)]
+  
+  ventana$Ult_Ref_Type_Events[is.na(ventana$Ult_Ref_Type_Events)]<-(-1)
+  
+  ventana$Ult_Ref_Type_Events <- as.factor(ventana$Ult_Ref_Type_Events)
+  
+  # Ult_App_Attributed_Events
+  
+  ventana$Ult_App_Attributed_Events <- as.character(EVENTS$attributed[match(ventana$device_id,
+                                                                            EVENTS$ref_hash)])
+  
+  ventana$Ult_App_Attributed_Events[is.na(ventana$Ult_App_Attributed_Events)]<-0
+  
+  ventana$Ult_App_Attributed_Events <- as.factor(ventana$Ult_App_Attributed_Events)
+  
+  
+  # Ult_connection_type_Events
+  
+  ventana$Ult_connection_type_Events <- as.character(EVENTS$connection_type[match(ventana$device_id,
+                                                                                  EVENTS$ref_hash)])
+  
+  ventana$Ult_connection_type_Events[is.na(ventana$Ult_connection_type_Events)]<-0
+  
+  ventana$Ult_connection_type_Events <- as.factor(ventana$Ult_connection_type_Events)
+  
+  # Ult_Event_EsWifi
+  
+  ventana$Ult_Event_EsWifi <- ifelse(EVENTS$wifi[match(ventana$device_id,
+                                                       EVENTS$ref_hash)]=="True",1,0)
+  
+  ventana$Ult_Event_EsWifi[is.na(ventana$Ult_Event_EsWifi)]<-0
+  
+  
+  # PCT_Events_1hs
+  
+  ventana$PCT_Events_1hs  <- ventana$Cant_Events_Ult1hs / ventana$Cant_Events_Ult12hs
+  ventana$PCT_Events_1hs[is.na(ventana$PCT_Events_1hs)]<-0
+  
+  summary(ventana$PCT_Events_1hs)
+  
+  
+  
+  # PCT_Events_6hs
+  
+  ventana$PCT_Events_6hs  <- ventana$Cant_Events_Ult6hs / ventana$Cant_Events_Ult24hs
+  ventana$PCT_Events_6hs[is.na(ventana$PCT_Events_6hs)]<-0
+  
+  summary(ventana$PCT_Events_6hs)
+  
+  
+  
+  # PCT_Events_12hs
+  
+  ventana$PCT_Events_12hs  <- ventana$Cant_Events_Ult12hs / ventana$Cant_Events_Ult48hs
+  ventana$PCT_Events_12hs[is.na(ventana$PCT_Events_12hs)]<-0
+  
+  summary(ventana$PCT_Events_12hs)
+  
+  
+  
+  # COMBINACIONES 
+  
+  ventana$Cant_Wifi <- ventana$UltClick_EsWifi + ventana$Ult_Event_EsWifi + ventana$Ult_Installs_EsWifi
+  
+  
+  
+  
+  #### VARIABLE TIENE HISTORIAL
+  
+  ventana$Tiene_Hist <- ifelse(ventana$Tuvo_Auction + ventana$Hizo_Click + ventana$Tiene_Events + ventana$Tiene_Installs>0,1,0)
+  table(ventana$Tiene_Hist)
+  
+  print(paste(round(88/88*100),"%"))
+  
+  
+  #### ARMO EL DF FINAL 
+  
+  ventana_final <- rbind(ventana_final,ventana)
+  
+  
+  print(i)
+  
+}
+
+
+ ventana_final <- ventana_final[-1,]
+
+
+#### UNO LOS DOS SET DE DATOS #### 
+ 
+datos_1 <- readRDS("Data_Set_1_v2.rds")
+datos_2 <- readRDS("Data_Set_2_v2.rds")
+
+DATOS <- rbind(datos_1,datos_2)
+
+saveRDS(DATOS,"Data_Set_Total_v2.rds")
+ 
+ 
