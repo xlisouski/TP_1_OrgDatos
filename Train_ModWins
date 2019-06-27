@@ -1,0 +1,223 @@
+setwd("D:/Documentos/Facu/Organizacion de Datos/TP2/Final_vFINAL/")
+
+#### MODELO 1 #### 
+
+datos_tot <- readRDS("Data_Set_Total_vFINAL.rds")
+
+datos_tot <- datos_tot[,!colnames(datos_tot) %in% c("ref_type_id","source_id")]
+
+datos_tot <- subset(datos_tot,datos_tot$Tuvo_Auction==1)
+
+library(Metrics)
+
+library(StatMeasures)
+contents(datos_tot)->resumen
+
+nombres_cat <- resumen$variable[resumen$class == "character"]
+nombres_cat
+
+for(i in 1:length(nombres_cat)){
+  
+  VARIABLE <- datos_tot[,colnames(datos_tot)==nombres_cat[i]]
+  
+  tabla_match <- aggregate(datos_tot$TARGET,
+                           by=list(VARIABLE),
+                           median)
+  
+  datos_tot[,colnames(datos_tot)==nombres_cat[i]]<-tabla_match$x[match(VARIABLE,tabla_match$Group.1)]
+  
+  print(i)
+  
+}
+
+
+
+#### PRIMER CRITERIO TRAIN Y TEST: VENTANAS 2 A 5 TRAIN, VENTANA 7 VAL
+
+datos_tot_train <- subset(datos_tot,datos_tot$ventana %in% 2:5)
+
+datos_tot_val <- subset(datos_tot,datos_tot$ventana==7)
+
+nombres <- colnames(datos_tot_train[,c(7:(ncol(datos_tot_train)-1))])
+nombres <- nombres[!nombres %in% c("Tuvo_Auction","Time_UltClick")]
+
+nombres_xg <- nombres[!nombres %in% c("TARGET")]
+
+# XGBOOST
+
+library(xgboost)
+
+TARGET <- datos_tot_train$TARGET
+
+nombres_xg <- nombres[!nombres %in% c("TARGET")]
+
+set.seed(125)
+
+MOD_10 <- xgboost(data.matrix(datos_tot_train[,colnames(datos_tot_train) %in% nombres_xg]), 
+                  label = TARGET,
+                  booster = "gbtree", 
+                  objective = "reg:linear",
+                  colsample_bytree = 0.15, 
+                  gamma = 0.02,
+                  learning_rate = 0.075,
+                  max_depth = 8,
+                  min_child_weight = 1.5, 
+                  reg_alpha = 0.6, 
+                  reg_lambda = 0.6,
+                  subsample = 0.5,
+                  silent = 1, 
+                  nrounds = 150)
+
+
+# Predicciones
+
+PREDICCIONES_TRAIN <- predict(MOD_10,data.matrix(datos_tot_train[,colnames(datos_tot_train) %in% nombres_xg]))
+summary(PREDICCIONES_TRAIN)
+PREDICCIONES_TRAIN <- ifelse(PREDICCIONES_TRAIN<0,0,
+                             ifelse(PREDICCIONES_TRAIN>60*60*24*3,60*60*24*3,
+                                    PREDICCIONES_TRAIN))
+summary(PREDICCIONES_TRAIN)
+
+PREDICCIONES_VAL <- predict(MOD_10,data.matrix(datos_tot_val[,colnames(datos_tot_val)%in%nombres_xg]))
+summary(PREDICCIONES_VAL)
+PREDICCIONES_VAL <- ifelse(PREDICCIONES_VAL<0,0,
+                           ifelse(PREDICCIONES_VAL>60*60*24*3,60*60*24*3,
+                                  PREDICCIONES_VAL))
+summary(PREDICCIONES_VAL)
+
+# CALCULO RMSE
+
+RMSE_TRAIN <- rmse(datos_tot_train$TARGET,PREDICCIONES_TRAIN)
+RMSE_TRAIN
+
+RMSE_VAL <- rmse(datos_tot_val$TARGET,PREDICCIONES_VAL)
+RMSE_VAL
+
+# Exporto modelo ganador
+
+saveRDS(MOD_10,"MODELO_GANADOR_1_VFINAL.rds")
+
+
+#### MODELO 2 #### 
+
+datos_tot <- readRDS("Data_Set_Total_vFINAL.rds")
+
+datos_tot <- datos_tot[,!colnames(datos_tot) %in% c("ref_type_id","source_id")]
+
+library(Metrics)
+
+# Primero filtro para quedarme con los dispositivos con historial 
+
+library(StatMeasures)
+contents(datos_tot)->resumen
+
+nombres_cat <- resumen$variable[resumen$class == "character"]
+nombres_cat
+
+for(i in 1:length(nombres_cat)){
+  
+  VARIABLE <- datos_tot[,colnames(datos_tot)==nombres_cat[i]]
+  
+  tabla_match <- aggregate(datos_tot$TARGET_CONV,
+                           by=list(VARIABLE),
+                           mean)
+  
+  datos_tot[,colnames(datos_tot)==nombres_cat[i]]<-tabla_match$x[match(VARIABLE,tabla_match$Group.1)]
+  
+  print(i)
+  
+}
+
+
+contents(datos_tot)->resumen
+
+
+# Defino test y train 
+
+datos_tot_train <- subset(datos_tot,datos_tot$ventana %in% 1:4)
+
+datos_tot_val <- subset(datos_tot,datos_tot$ventana==7)
+
+library(Metrics)
+
+
+#### REGRESION LINEAL PARA ARMAR FEATURE
+
+REG <- lm(TARGET_CONV~
+            Ult_Event_id+
+            Tiene_Installs+
+            Ult_Installs_EsWifi+
+            Ult_Ref_Type_Events -1,
+          data = datos_tot_train)
+
+summary(REG) -> sum_REG
+
+sum_REG$coefficients -> COEF_REG
+COEF_REG
+
+PREDICCIONES_TRAIN_REG <- predict(REG,datos_tot_train)
+summary(PREDICCIONES_TRAIN_REG)
+
+
+PREDICCIONES_VAL_REG <- predict(REG,datos_tot_val)
+summary(PREDICCIONES_VAL_REG)
+
+
+
+# XGBOOST
+
+library(xgboost)
+
+TARGET <- datos_tot_train$TARGET_CONV
+
+nombres <- colnames(datos_tot_train)[7:(ncol(datos_tot_train)-1)]
+
+
+set.seed(42)
+
+MOD_3 <- xgboost(data.matrix(data.frame(REG_1=PREDICCIONES_TRAIN_REG,
+                                        datos_tot_train[,colnames(datos_tot_train) %in% nombres])), 
+                 label = TARGET,
+                 booster = "gbtree", 
+                 objective = "reg:linear",
+                 colsample_bytree = 0.3, 
+                 gamma = 0.02,
+                 learning_rate = 0.075,
+                 max_depth = 10,
+                 min_child_weight = 1.5,
+                 reg_alpha = 0.6, 
+                 reg_lambda = 0.5,
+                 subsample = 0.3, 
+                 seed = 42,
+                 silent = 1, 
+                 nrounds = 80,
+                 lambda=0.05)
+
+
+
+# Predicciones
+
+PREDICCIONES_TRAIN <- predict(MOD_3,data.matrix(data.frame(REG_1=PREDICCIONES_TRAIN_REG,
+                                                           datos_tot_train[,colnames(datos_tot_train) %in% nombres])))
+summary(PREDICCIONES_TRAIN)
+PREDICCIONES_TRAIN <- ifelse(PREDICCIONES_TRAIN<0,0,
+                             ifelse(PREDICCIONES_TRAIN>60*60*24*3,60*60*24*3,
+                                    PREDICCIONES_TRAIN))
+summary(PREDICCIONES_TRAIN)
+
+PREDICCIONES_VAL <- predict(MOD_3,data.matrix(data.frame(REG_1=PREDICCIONES_VAL_REG,
+                                                         datos_tot_val[,colnames(datos_tot_val)%in%nombres])))
+summary(PREDICCIONES_VAL)
+PREDICCIONES_VAL <- ifelse(PREDICCIONES_VAL<0,0,
+                           ifelse(PREDICCIONES_VAL>60*60*24*3,60*60*24*3,
+                                  PREDICCIONES_VAL))
+summary(PREDICCIONES_VAL)
+
+# CALCULO RMSE
+
+RMSE_TRAIN <- rmse(datos_tot_train$TARGET_CONV,PREDICCIONES_TRAIN)
+RMSE_TRAIN
+
+RMSE_VAL <- rmse(datos_tot_val$TARGET_CONV,PREDICCIONES_VAL)
+RMSE_VAL
+
