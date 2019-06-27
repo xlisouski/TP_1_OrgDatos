@@ -1,0 +1,689 @@
+setwd("D:/Documentos/Facu/Organizacion de Datos/TP2/Final_v3/")
+
+# setwd("C:/Users/Marce/Documents/tp/Final_v2/")
+
+datos_tot <- readRDS("Data_Set_Total_v3.rds")
+
+datos_tot <- datos_tot[,!colnames(datos_tot) %in% c("ref_type_id","source_id")]
+
+library(Metrics)
+
+# Primero filtro para quedarme con los dispositivos con historial 
+
+datos_tot <- subset(datos_tot,datos_tot$Tuvo_Auction==1)
+datos_tot <- subset(datos_tot,datos_tot$Tiene_Installs==1)
+
+table(datos_tot$ventana)
+
+# Convierte categoricas en numericas 
+
+library(StatMeasures)
+contents(datos_tot)->resumen
+
+nombres_cat <- resumen$variable[resumen$class == "character"]
+nombres_cat
+
+for(i in 1:length(nombres_cat)){
+
+VARIABLE <- datos_tot[,colnames(datos_tot)==nombres_cat[i]]
+
+tabla_match <- aggregate(datos_tot$TARGET_CONV,
+                         by=list(VARIABLE),
+                         mean)
+
+datos_tot[,colnames(datos_tot)==nombres_cat[i]]<-tabla_match$x[match(VARIABLE,tabla_match$Group.1)]
+
+print(i)
+
+}
+ 
+
+contents(datos_tot)->resumen
+
+table(resumen$class)
+
+
+#### PRIMER CRITERIO TRAIN Y TEST: VENTANAS 2 A 5 TRAIN, VENTANA 7 VAL ####
+
+datos_tot_train <- subset(datos_tot,datos_tot$ventana %in% 2:5)
+
+datos_tot_val <- subset(datos_tot,datos_tot$ventana==7)
+
+# Empiezo a probar modelos 
+
+#### MOD_1 ####
+
+nombres <- colnames(datos_tot_train[,c(6,7:(ncol(datos_tot_train)-1))])
+nombres <- nombres[!nombres %in% c("Tuvo_Auction")]
+
+
+# Regresion
+
+MOD_1 <- lm(TARGET_CONV~.,
+            data = datos_tot_train[,nombres])
+
+summary(MOD_1) -> sum_MOD_1
+
+sum_MOD_1$coefficients -> COEF_MOD_1
+COEF_MOD_1
+
+# write.table(COEF_MOD_1,"COEF_MOD_1.csv",sep=";",row.names = FALSE)
+
+PREDICCIONES_TRAIN <- predict(MOD_1,datos_tot_train)
+summary(PREDICCIONES_TRAIN)
+PREDICCIONES_TRAIN <- ifelse(PREDICCIONES_TRAIN<0,0,
+                             ifelse(PREDICCIONES_TRAIN>60*60*24*3,60*60*24*3,
+                                    PREDICCIONES_TRAIN))
+summary(PREDICCIONES_TRAIN)
+
+PREDICCIONES_VAL <- predict(MOD_1,datos_tot_val)
+summary(PREDICCIONES_VAL)
+PREDICCIONES_VAL <- ifelse(PREDICCIONES_VAL<0,0,
+                             ifelse(PREDICCIONES_VAL>60*60*24*3,60*60*24*3,
+                                    PREDICCIONES_VAL))
+summary(PREDICCIONES_VAL)
+
+
+# CALCULO RMSE
+
+RMSE_TRAIN <- rmse(datos_tot_train$TARGET_CONV,PREDICCIONES_TRAIN)
+RMSE_TRAIN
+
+RMSE_VAL <- rmse(datos_tot_val$TARGET_CONV,PREDICCIONES_VAL)
+RMSE_VAL
+
+
+
+#### MOD_2 ####
+
+round(COEF_MOD_1[order(COEF_MOD_1[,4],decreasing = TRUE),],2)
+
+# Regresion
+
+nombres_final <- nombres[!nombres %in% rownames(COEF_MOD_1)[COEF_MOD_1[,4]>0.001]]
+nombres_final <- nombres_final[!nombres_final%in%c("Cant_Wifi","Total_Auctions","Cant_Auctions_00hs",
+                                                   "PCT_Installs_Ult24HS","PCT_Installs_24VS12","Prop_Auctions_14a22")]
+
+MOD_2 <- lm(TARGET_CONV~.,
+            data = datos_tot_train[,colnames(datos_tot_train) %in% nombres_final])
+
+summary(MOD_2) -> sum_MOD_2
+
+sum_MOD_2$coefficients -> COEF_MOD_2
+round(COEF_MOD_2,4)
+
+# write.table(COEF_MOD_2,"COEF_MOD_2.csv",sep=";",row.names = TRUE)
+
+# Predicciones
+
+PREDICCIONES_TRAIN <- predict(MOD_2,datos_tot_train)
+summary(PREDICCIONES_TRAIN)
+PREDICCIONES_TRAIN <- ifelse(PREDICCIONES_TRAIN<0,0,
+                             ifelse(PREDICCIONES_TRAIN>60*60*24*3,60*60*24*3,
+                                    PREDICCIONES_TRAIN))
+summary(PREDICCIONES_TRAIN)
+
+PREDICCIONES_VAL <- predict(MOD_2,datos_tot_val)
+summary(PREDICCIONES_VAL)
+PREDICCIONES_VAL <- ifelse(PREDICCIONES_VAL<0,0,
+                           ifelse(PREDICCIONES_VAL>60*60*24*3,60*60*24*3,
+                                  PREDICCIONES_VAL))
+summary(PREDICCIONES_VAL)
+
+# CALCULO RMSE
+
+RMSE_TRAIN <- rmse(datos_tot_train$TARGET_CONV,PREDICCIONES_TRAIN)
+RMSE_TRAIN
+
+RMSE_VAL <- rmse(datos_tot_val$TARGET_CONV,PREDICCIONES_VAL)
+RMSE_VAL
+
+
+#### MOD_3 ####
+
+# Regresion con transformacion logaritmica
+
+MOD_3 <- lm(log1p(TARGET_CONV)~.,
+            data = datos_tot_train[,colnames(datos_tot_train) %in% nombres_final])
+
+summary(MOD_3) -> sum_MOD_3
+
+sum_MOD_3$coefficients -> COEF_MOD_3
+round(COEF_MOD_3,4)
+
+# write.table(COEF_MOD_2,"COEF_MOD_2.csv",sep=";",row.names = TRUE)
+
+# Predicciones
+
+PREDICCIONES_TRAIN <- exp(predict(MOD_3,datos_tot_train))
+summary(PREDICCIONES_TRAIN)
+PREDICCIONES_TRAIN <- ifelse(PREDICCIONES_TRAIN<0,0,
+                             ifelse(PREDICCIONES_TRAIN>60*60*24*3,60*60*24*3,
+                                    PREDICCIONES_TRAIN))
+summary(PREDICCIONES_TRAIN)
+
+PREDICCIONES_VAL <- exp(predict(MOD_3,datos_tot_val))
+summary(PREDICCIONES_VAL)
+PREDICCIONES_VAL <- ifelse(PREDICCIONES_VAL<0,0,
+                           ifelse(PREDICCIONES_VAL>60*60*24*3,60*60*24*3,
+                                  PREDICCIONES_VAL))
+summary(PREDICCIONES_VAL)
+
+# CALCULO RMSE
+
+RMSE_TRAIN <- rmse(datos_tot_train$TARGET_CONV,PREDICCIONES_TRAIN)
+RMSE_TRAIN
+
+RMSE_VAL <- rmse(datos_tot_val$TARGET_CONV,PREDICCIONES_VAL)
+RMSE_VAL
+
+
+#### MOD_4 ####
+
+nombres <- colnames(datos_tot_train[,c(6,7:(ncol(datos_tot_train)-1))])
+nombres <- nombres[!nombres %in% c("Tuvo_Auction","Tiene_Installs")]
+
+# RANDOM FOREST
+
+library(ranger)
+
+set.seed(25)
+
+MOD_4 <- ranger(TARGET_CONV ~ .,
+                data = datos_tot_train[,colnames(datos_tot_train) %in% nombres],
+                mtry = 10,
+                min.node.size = 0.005*nrow(datos_tot_train),
+                num.trees = 500,
+                replace = FALSE,
+                importance = 'impurity',
+                dependent.variable.name = TARGET)
+
+importancia_MOD_4 <- MOD_4$variable.importance
+importancia_MOD_4[order(importancia_MOD_4,decreasing = TRUE)][1:20]
+
+
+# Predicciones
+
+PREDICCIONES_TRAIN <- predictions(MOD_4,datos_tot_train)
+summary(PREDICCIONES_TRAIN)
+PREDICCIONES_TRAIN <- ifelse(PREDICCIONES_TRAIN<0,0,
+                             ifelse(PREDICCIONES_TRAIN>60*60*24*3,60*60*24*3,
+                                    PREDICCIONES_TRAIN))
+summary(PREDICCIONES_TRAIN)
+
+PREDICCIONES_VAL <- predict(MOD_4,datos_tot_val)
+summary(PREDICCIONES_VAL)
+PREDICCIONES_VAL <- PREDICCIONES_VAL$predictions
+summary(PREDICCIONES_VAL)
+PREDICCIONES_VAL <- ifelse(PREDICCIONES_VAL<0,0,
+                           ifelse(PREDICCIONES_VAL>60*60*24*3,60*60*24*3,
+                                  PREDICCIONES_VAL))
+summary(PREDICCIONES_VAL)
+
+# CALCULO RMSE
+
+RMSE_TRAIN <- rmse(datos_tot_train$TARGET_CONV,PREDICCIONES_TRAIN)
+RMSE_TRAIN
+
+RMSE_VAL <- rmse(datos_tot_val$TARGET_CONV,PREDICCIONES_VAL)
+RMSE_VAL
+
+
+
+#### MOD_5 ####
+
+# RANDOM FOREST
+
+nombres <- colnames(datos_tot_train[,c(6,7:(ncol(datos_tot_train)-1))])
+nombres <- nombres[!nombres %in% c("Tuvo_Auction")]
+
+# RANDOM FOREST
+
+library(ranger)
+
+set.seed(15)
+
+MOD_5 <- ranger(TARGET_CONV ~ .,
+                data = datos_tot_train[,colnames(datos_tot_train) %in% nombres],
+                mtry = 15,
+                min.node.size = 0.0005*nrow(datos_tot_train),
+                num.trees = 500,
+                replace = FALSE,
+                importance = 'impurity',
+                dependent.variable.name = TARGET)
+
+importancia_MOD_5 <- MOD_5$variable.importance
+importancia_MOD_5[order(importancia_MOD_5,decreasing = TRUE)][1:20]
+
+
+# Predicciones
+
+PREDICCIONES_TRAIN <- predictions(MOD_5,datos_tot_train)
+summary(PREDICCIONES_TRAIN)
+PREDICCIONES_TRAIN <- ifelse(PREDICCIONES_TRAIN<0,0,
+                             ifelse(PREDICCIONES_TRAIN>60*60*24*3,60*60*24*3,
+                                    PREDICCIONES_TRAIN))
+summary(PREDICCIONES_TRAIN)
+
+PREDICCIONES_VAL <- predict(MOD_5,datos_tot_val)
+summary(PREDICCIONES_VAL)
+PREDICCIONES_VAL <- PREDICCIONES_VAL$predictions
+summary(PREDICCIONES_VAL)
+PREDICCIONES_VAL <- ifelse(PREDICCIONES_VAL<0,0,
+                           ifelse(PREDICCIONES_VAL>60*60*24*3,60*60*24*3,
+                                  PREDICCIONES_VAL))
+summary(PREDICCIONES_VAL)
+
+# CALCULO RMSE
+
+RMSE_TRAIN <- rmse(datos_tot_train$TARGET_CONV,PREDICCIONES_TRAIN)
+RMSE_TRAIN
+
+RMSE_VAL <- rmse(datos_tot_val$TARGET_CONV,PREDICCIONES_VAL)
+RMSE_VAL
+
+
+#### MOD_6 ####
+
+# XGBOOST
+
+library(xgboost)
+
+TARGET <- datos_tot_train$TARGET_CONV
+
+nombres <- colnames(datos_tot_train[,c(6,7:(ncol(datos_tot_train)-1))])
+nombres <- nombres[!nombres %in% c("Tuvo_Auction")]
+
+nombres_xg <- nombres[!nombres %in% c("TARGET_CONV")]
+
+set.seed(25)
+
+MOD_6 <- xgboost(data.matrix(datos_tot_train[,colnames(datos_tot_train) %in% nombres_xg]), 
+                 label = TARGET,
+                 booster = "gbtree", 
+                 objective = "reg:linear",
+                 colsample_bytree = 0.15, 
+                 gamma = 0.02,
+                 learning_rate = 0.075,
+                 max_depth = 8,
+                 min_child_weight = 1.5, 
+                 reg_alpha = 0.6, 
+                 reg_lambda = 0.6,
+                 subsample = 0.3,
+                 silent = 1, 
+                 nrounds = 150)
+
+
+# Predicciones
+
+PREDICCIONES_TRAIN <- predict(MOD_6,data.matrix(datos_tot_train[,colnames(datos_tot_train) %in% nombres_xg]))
+summary(PREDICCIONES_TRAIN)
+PREDICCIONES_TRAIN <- ifelse(PREDICCIONES_TRAIN<0,0,
+                             ifelse(PREDICCIONES_TRAIN>60*60*24*3,60*60*24*3,
+                                    PREDICCIONES_TRAIN))
+summary(PREDICCIONES_TRAIN)
+
+PREDICCIONES_VAL <- predict(MOD_6,data.matrix(datos_tot_val[,colnames(datos_tot_val)%in%nombres_xg]))
+summary(PREDICCIONES_VAL)
+PREDICCIONES_VAL <- ifelse(PREDICCIONES_VAL<0,0,
+                           ifelse(PREDICCIONES_VAL>60*60*24*3,60*60*24*3,
+                                  PREDICCIONES_VAL))
+summary(PREDICCIONES_VAL)
+
+# CALCULO RMSE
+
+RMSE_TRAIN <- rmse(datos_tot_train$TARGET_CONV,PREDICCIONES_TRAIN)
+RMSE_TRAIN
+
+RMSE_VAL <- rmse(datos_tot_val$TARGET_CONV,PREDICCIONES_VAL)
+RMSE_VAL
+
+
+# saveRDS(MOD_6,"MODELO_GANADOR_2_v13.rds")
+
+
+#### MOD_7 ####
+
+# REARMO LA MUESTRA DE VALIDACION Y DESARROLLO 
+
+datos_tot_train <- subset(datos_tot,datos_tot$ventana %in% 2:4)
+datos_tot_train <- datos_tot_train[order(datos_tot_train$TARGET),]
+
+datos_tot_train <- subset(datos_tot_train,duplicated(datos_tot_train$device_id)==FALSE)
+
+
+datos_tot_val <- subset(datos_tot,datos_tot$ventana==7)
+
+
+# PREDECIR EL TIEMPO ESPERADO HASTA PROX AUCTION 
+
+library(xgboost)
+
+TARGET <- datos_tot_train$TARGET
+
+nombres <- colnames(datos_tot_train[,c(6,7:(ncol(datos_tot_train)-1))])
+nombres <- nombres[!nombres %in% c("Tuvo_Auction")]
+
+nombres_xg <- nombres[!nombres %in% c("TARGET_CONV")]
+
+set.seed(25)
+
+T_ESP_AUCT <- xgboost(data.matrix(datos_tot_train[,colnames(datos_tot_train) %in% nombres_xg]), 
+                 label = TARGET,
+                 booster = "gbtree", 
+                 objective = "reg:linear",
+                 colsample_bytree = 0.15, 
+                 gamma = 0.02,
+                 learning_rate = 0.075,
+                 max_depth = 8,
+                 min_child_weight = 1.5, 
+                 reg_alpha = 0.6, 
+                 reg_lambda = 0.6,
+                 subsample = 0.3,
+                 silent = 1, 
+                 nrounds = 150)
+
+
+T_ESP_AUCT_TRAIN <- predict(T_ESP_AUCT,data.matrix(datos_tot_train[,colnames(datos_tot_train)%in%nombres_xg]))
+summary(T_ESP_AUCT_TRAIN)
+T_ESP_AUCT_TRAIN <- ifelse(T_ESP_AUCT_TRAIN<0,0,
+                         ifelse(T_ESP_AUCT_TRAIN>60*60*24*3,60*60*24*3,
+                                T_ESP_AUCT_TRAIN))
+summary(T_ESP_AUCT_TRAIN)
+
+
+
+T_ESP_AUCT_VAL <- predict(T_ESP_AUCT,data.matrix(datos_tot_val[,colnames(datos_tot_val)%in%nombres_xg]))
+summary(T_ESP_AUCT_VAL)
+T_ESP_AUCT_VAL <- ifelse(T_ESP_AUCT_VAL<0,0,
+                         ifelse(T_ESP_AUCT_VAL>60*60*24*3,60*60*24*3,
+                                T_ESP_AUCT_VAL))
+summary(T_ESP_AUCT_VAL)
+
+
+# XGBOOST QUE INCLUYE EL TIEMPO ESPERADO DE AUCTION
+
+set.seed(25)
+
+TARGET <- datos_tot_train$TARGET_CONV
+
+MOD_7 <- xgboost(data.matrix(data.frame(T_ESP_AUCT=T_ESP_AUCT_TRAIN,
+                                        datos_tot_train[,colnames(datos_tot_train) %in% nombres_xg])), 
+                      label = TARGET,
+                      booster = "gbtree", 
+                      objective = "reg:linear",
+                      colsample_bytree = 0.15, 
+                      gamma = 0.02,
+                      learning_rate = 0.075,
+                      max_depth = 8,
+                      min_child_weight = 1.5, 
+                      reg_alpha = 0.6, 
+                      reg_lambda = 0.6,
+                      subsample = 0.3,
+                      silent = 1, 
+                      nrounds = 150)
+
+
+# Predicciones
+
+PREDICCIONES_TRAIN <- predict(MOD_7,data.matrix(data.frame(T_ESP_AUCT=T_ESP_AUCT_TRAIN,
+                                                          datos_tot_train[,colnames(datos_tot_train) %in% nombres_xg])))
+summary(PREDICCIONES_TRAIN)
+PREDICCIONES_TRAIN <- ifelse(PREDICCIONES_TRAIN<0,0,
+                             ifelse(PREDICCIONES_TRAIN>60*60*24*3,60*60*24*3,
+                                    PREDICCIONES_TRAIN))
+summary(PREDICCIONES_TRAIN)
+
+PREDICCIONES_VAL <- predict(MOD_7,data.matrix(data.frame(T_ESP_AUCT=T_ESP_AUCT_VAL,
+                                                         datos_tot_val[,colnames(datos_tot_val)%in%nombres_xg])))
+summary(PREDICCIONES_VAL)
+PREDICCIONES_VAL <- ifelse(PREDICCIONES_VAL<0,0,
+                           ifelse(PREDICCIONES_VAL>60*60*24*3,60*60*24*3,
+                                  PREDICCIONES_VAL))
+summary(PREDICCIONES_VAL)
+
+# CALCULO RMSE
+
+RMSE_TRAIN <- rmse(datos_tot_train$TARGET_CONV,PREDICCIONES_TRAIN)
+RMSE_TRAIN
+
+RMSE_VAL <- rmse(datos_tot_val$TARGET_CONV,PREDICCIONES_VAL)
+RMSE_VAL
+
+
+# GUARDO RESULTADOS
+
+saveRDS(MOD_7,"MODELO_GANADOR_2_v14.rds")
+saveRDS(T_ESP_AUCT,"T_ESP_AUCT_2_v14.rds")
+
+
+
+
+
+
+
+
+#### MOD_7 ####
+
+#### PROBAR ENSAMBLE 
+
+datos_tot_train_1 <- subset(datos_tot,datos_tot$ventana==2)
+datos_tot_train_2 <- subset(datos_tot,datos_tot$ventana==3)
+datos_tot_train_3 <- subset(datos_tot,datos_tot$ventana==4)
+datos_tot_train_4 <- subset(datos_tot,datos_tot$ventana==5)
+datos_tot_train_5 <- subset(datos_tot,datos_tot$ventana==6)
+datos_tot_train_6 <- subset(datos_tot,datos_tot$ventana==7)
+
+####### MODELO 1 ####
+
+nombres <- colnames(datos_tot_train_1[,c(7:(ncol(datos_tot_train_1)-1))])
+nombres <- nombres[!nombres %in% c("Tuvo_Auction","Time_UltClick","Tiene_Installs")]
+
+nombres_xg <- nombres[!nombres %in% c("TARGET")]
+
+library(xgboost)
+
+TARGET <- datos_tot_train_1$TARGET_CONV
+
+set.seed(12)
+
+MOD_7_1 <- xgboost(data.matrix(datos_tot_train_1[,colnames(datos_tot_train_1) %in% nombres_xg]), 
+                    label = TARGET,
+                    booster = "gbtree", 
+                    objective = "reg:linear",
+                    colsample_bytree = 0.15, 
+                    gamma = 0.02,
+                    learning_rate = 0.075,
+                    max_depth = 8,
+                    min_child_weight = 1.5, 
+                    reg_alpha = 0.6, 
+                    reg_lambda = 0.6,
+                    subsample = 0.5,
+                    silent = 1, 
+                    nrounds = 150)
+
+set.seed(12)
+
+TARGET <- datos_tot_train_2$TARGET_CONV
+
+MOD_7_2 <- xgboost(data.matrix(datos_tot_train_2[,colnames(datos_tot_train_2) %in% nombres_xg]), 
+                   label = TARGET,
+                   booster = "gbtree", 
+                   objective = "reg:linear",
+                   colsample_bytree = 0.15, 
+                   gamma = 0.02,
+                   learning_rate = 0.075,
+                   max_depth = 8,
+                   min_child_weight = 1.5, 
+                   reg_alpha = 0.6, 
+                   reg_lambda = 0.6,
+                   subsample = 0.5,
+                   silent = 1, 
+                   nrounds = 150)
+
+set.seed(12)
+
+TARGET <- datos_tot_train_3$TARGET_CONV
+
+MOD_7_3 <- xgboost(data.matrix(datos_tot_train_3[,colnames(datos_tot_train_3) %in% nombres_xg]), 
+                   label = TARGET,
+                   booster = "gbtree", 
+                   objective = "reg:linear",
+                   colsample_bytree = 0.15, 
+                   gamma = 0.02,
+                   learning_rate = 0.075,
+                   max_depth = 8,
+                   min_child_weight = 1.5, 
+                   reg_alpha = 0.6, 
+                   reg_lambda = 0.6,
+                   subsample = 0.5,
+                   silent = 1, 
+                   nrounds = 150)
+
+set.seed(12)
+
+TARGET <- datos_tot_train_4$TARGET_CONV
+
+MOD_7_4 <- xgboost(data.matrix(datos_tot_train_4[,colnames(datos_tot_train_4) %in% nombres_xg]), 
+                   label = TARGET,
+                   booster = "gbtree", 
+                   objective = "reg:linear",
+                   colsample_bytree = 0.15, 
+                   gamma = 0.02,
+                   learning_rate = 0.075,
+                   max_depth = 8,
+                   min_child_weight = 1.5, 
+                   reg_alpha = 0.6, 
+                   reg_lambda = 0.6,
+                   subsample = 0.5,
+                   silent = 1, 
+                   nrounds = 150)
+
+
+#### ARMO LAS PREDICCIONES TOTALES ####
+
+P_XG_1 <- predict(MOD_7_1,data.matrix(datos_tot[,colnames(datos_tot) %in% nombres_xg]))
+P_XG_1 <- ifelse(P_XG_1<0,0,
+                 ifelse(P_XG_1>60*60*24*3,60*60*24*3,
+                        P_XG_1))
+summary(P_XG_1)
+
+P_XG_2 <- predict(MOD_7_2,data.matrix(datos_tot[,colnames(datos_tot) %in% nombres_xg]))
+P_XG_2 <- ifelse(P_XG_2<0,0,
+                 ifelse(P_XG_2>60*60*24*3,60*60*24*3,
+                        P_XG_2))
+
+summary(P_XG_2)
+
+
+P_XG_3 <- predict(MOD_7_3,data.matrix(datos_tot[,colnames(datos_tot) %in% nombres_xg]))
+P_XG_3 <- ifelse(P_XG_3<0,0,
+                 ifelse(P_XG_3>60*60*24*3,60*60*24*3,
+                        P_XG_3))
+
+summary(P_XG_3)
+
+P_XG_4 <- predict(MOD_7_4,data.matrix(datos_tot[,colnames(datos_tot) %in% nombres_xg]))
+P_XG_4 <- ifelse(P_XG_4<0,0,
+                 ifelse(P_XG_4>60*60*24*3,60*60*24*3,
+                        P_XG_4))
+
+summary(P_XG_4)
+
+
+PREDICCIONES_TOTALES <- data.frame(TARGET=datos_tot$TARGET_CONV,
+                                   VENTANA=datos_tot$ventana,
+                                   P_XG_1,
+                                   P_XG_2,
+                                   P_XG_3,
+                                   P_XG_4)
+
+PREDICCIONES_TOTALES_TRAIN <- subset(PREDICCIONES_TOTALES,PREDICCIONES_TOTALES$VENTANA%in%2:5)
+PREDICCIONES_TOTALES_VAL <- subset(PREDICCIONES_TOTALES,PREDICCIONES_TOTALES$VENTANA%in%7)
+
+REG <- lm(TARGET~
+                 P_XG_1+
+                 P_XG_2+
+                 P_XG_3+
+                 P_XG_4-1,
+               data = PREDICCIONES_TOTALES_TRAIN)
+
+summary(REG) -> sum_REG_1
+
+sum_REG_1$coefficients -> COEF_REG_1
+round(COEF_REG_1,4)
+
+
+# Predicciones
+
+PREDICCIONES_TRAIN <- predict(REG,PREDICCIONES_TOTALES_TRAIN)
+summary(PREDICCIONES_TRAIN)
+PREDICCIONES_TRAIN <- ifelse(PREDICCIONES_TRAIN<0,0,
+                             ifelse(PREDICCIONES_TRAIN>60*60*24*3,60*60*24*3,
+                                    PREDICCIONES_TRAIN))
+summary(PREDICCIONES_TRAIN)
+
+PREDICCIONES_VAL <- predict(REG,PREDICCIONES_TOTALES_VAL)
+summary(PREDICCIONES_VAL)
+PREDICCIONES_VAL <- ifelse(PREDICCIONES_VAL<0,0,
+                           ifelse(PREDICCIONES_VAL>60*60*24*3,60*60*24*3,
+                                  PREDICCIONES_VAL))
+summary(PREDICCIONES_VAL)
+
+# CALCULO RMSE
+
+RMSE_TRAIN <- rmse(PREDICCIONES_TOTALES_TRAIN$TARGET,PREDICCIONES_TRAIN)
+RMSE_TRAIN
+
+RMSE_VAL <- rmse(PREDICCIONES_TOTALES_VAL$TARGET,PREDICCIONES_VAL)
+RMSE_VAL
+
+
+
+
+
+
+#### RANDOM FOREST ####
+
+library(ranger)
+
+set.seed(12)
+
+MOD_11_RF <- ranger(TARGET ~ .,
+                    data = PREDICCIONES_TOTALES[PREDICCIONES_TOTALES$VENTANA%in%c(2:5),c(1,3:6)],
+                    mtry = 2,
+                    min.node.size = 0.005*nrow(PREDICCIONES_TOTALES),
+                    num.trees = 70,
+                    replace = FALSE,
+                    importance = 'impurity',
+                    dependent.variable.name = TARGET)
+
+importancia <- MOD_11_RF$variable.importance
+importancia[order(importancia,decreasing = TRUE)]
+
+
+# Predicciones
+
+PREDICCIONES_TRAIN <- predictions(MOD_11_RF,PREDICCIONES_TOTALES[PREDICCIONES_TOTALES$VENTANA%in%c(2:5),c(1,3:6)])
+summary(PREDICCIONES_TRAIN)
+PREDICCIONES_TRAIN <- ifelse(PREDICCIONES_TRAIN<0,0,
+                             ifelse(PREDICCIONES_TRAIN>60*60*24*3,60*60*24*3,
+                                    PREDICCIONES_TRAIN))
+summary(PREDICCIONES_TRAIN)
+
+PREDICCIONES_VAL <- predict(MOD_11_RF,PREDICCIONES_TOTALES[PREDICCIONES_TOTALES$VENTANA%in%7,c(1,3:6)])
+summary(PREDICCIONES_VAL)
+PREDICCIONES_VAL <- PREDICCIONES_VAL$predictions
+summary(PREDICCIONES_VAL)
+PREDICCIONES_VAL <- ifelse(PREDICCIONES_VAL<0,0,
+                           ifelse(PREDICCIONES_VAL>60*60*24*3,60*60*24*3,
+                                  PREDICCIONES_VAL))
+summary(PREDICCIONES_VAL)
+
+
+
+RMSE_TRAIN <- rmse(PREDICCIONES_TOTALES$TARGET[PREDICCIONES_TOTALES$VENTANA%in%c(2:5)],PREDICCIONES_TRAIN)
+RMSE_TRAIN
+
+RMSE_VAL <- rmse(PREDICCIONES_TOTALES$TARGET[PREDICCIONES_TOTALES$VENTANA%in%7],PREDICCIONES_VAL)
+RMSE_VAL
