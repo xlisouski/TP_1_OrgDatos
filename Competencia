@@ -1,0 +1,95 @@
+setwd("D:/Documentos/Facu/Organizacion de Datos/TP2/Final_vFINAL/")
+
+#setwd("C:/Users/Marce/Documents/tp/Final/")
+
+readRDS("Data_validation_vFINAL.rds")->datos_MOD_1
+
+#### TRANSFORMACION 
+
+datos_tot <- readRDS("Data_Set_Total_vFINAL.rds")
+
+datos_tot <- datos_tot[,!colnames(datos_tot) %in% c("ref_type_id","source_id")]
+
+#### NOMBRO LAS VARIABLES A CONVERTIR 
+
+library(StatMeasures)
+contents(datos_tot)->resumen
+
+nombres_cat <- resumen$variable[resumen$class == "character"]
+nombres_cat
+
+### TRANSFORMACION 1 
+
+datos_tot <- subset(datos_tot,datos_tot$Tuvo_Auction==1)
+
+for(i in 1:length(nombres_cat)){
+  
+  VARIABLE <- datos_tot[,colnames(datos_tot)==nombres_cat[i]]
+  VARIABLE_VAL <- as.character(datos_MOD_1[,colnames(datos_MOD_1)==as.character(nombres_cat[i])])
+  
+  tabla_match <- aggregate(datos_tot$TARGET,
+                           by=list(VARIABLE),
+                           mean)
+  
+  VARIABLE_VAL_match<-tabla_match$x[match(VARIABLE_VAL,tabla_match$Group.1)]
+  VARIABLE_VAL_match[is.na(VARIABLE_VAL_match)] <- mean(datos_tot$TARGET)
+  
+  datos_MOD_1[,colnames(datos_MOD_1)==as.character(nombres_cat[i])] <- VARIABLE_VAL_match
+  
+  print(i)
+  
+}
+
+
+readRDS("Data_validation_TR_MOD2.rds")->datos_MOD_2
+
+# MODELO 1
+
+readRDS("MODELO_GANADOR_1_VFINAL.rds") -> MOD_1
+
+# MODELO 2
+
+readRDS("MODELO_GANADOR_2_v5.rds") -> MOD_2
+
+readRDS("MODELO_GANADOR_2_V5_VAR_REG.rds") -> REG
+
+
+##### PREDICCIONES MODELO 1
+
+nombres <- colnames(datos_MOD_1)[3:(ncol(datos_MOD_1)-1)]
+nombres <- nombres[!nombres %in% c("Tuvo_Auction","Time_UltClick")]
+
+
+PREDICCIONES_1 <- predict(MOD_1,data.matrix(datos_MOD_1[,colnames(datos_MOD_1) %in% nombres]))
+summary(PREDICCIONES_1)
+PREDICCIONES_1 <- ifelse(PREDICCIONES_1<0,0,
+                         ifelse(PREDICCIONES_1>60*60*24*3,60*60*24*3,
+                                PREDICCIONES_1))
+summary(PREDICCIONES_1)
+
+
+##### PREDICCIONES MODELO 2
+
+PREDICCIONES_TRAIN_REG <- predict(REG,datos_MOD_2)
+
+nombres <- colnames(datos_MOD_2)[3:(ncol(datos_MOD_2)-1)]
+
+PREDICCIONES_2 <- predict(MOD_2,data.matrix(data.frame(REG_1=PREDICCIONES_TRAIN_REG,
+                                                           datos_MOD_2[,colnames(datos_MOD_2) %in% nombres])))
+summary(PREDICCIONES_2)
+PREDICCIONES_2 <- ifelse(PREDICCIONES_2<0,0,
+                         ifelse(PREDICCIONES_2>60*60*24*3,60*60*24*3,
+                                PREDICCIONES_2))
+summary(PREDICCIONES_2)
+
+
+# Subo el archivo original
+
+read.csv("target_competencia_ids.csv")->inicial
+
+datos_FINAL <- data.frame(ref_hash=inicial$ref_hash,
+                          obj=ifelse(datos_MOD_1$model=="sc",PREDICCIONES_2,PREDICCIONES_1))
+
+
+write.table(datos_FINAL,"datos_final_VFINAL.csv",sep = ",",row.names = FALSE)
+
